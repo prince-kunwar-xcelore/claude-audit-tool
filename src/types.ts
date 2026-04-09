@@ -30,3 +30,16 @@ export interface ReviewOutput {
   verdict: 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES';
   comments: ReviewComment[];
 }
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUSD: number;
+}
+
+export interface BatchResult {
+  review: ReviewOutput;
+  usage: TokenUsage;
+}

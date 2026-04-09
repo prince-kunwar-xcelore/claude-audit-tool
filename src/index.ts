@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { fetchPr } from './github.js';
 import { parseDiffString, chunkFiles, validateComments } from './diff.js';
-import { buildPrompt, callClaude, mergeReviews } from './claude.js';
+import { buildPrompt, callClaude, mergeResults } from './claude.js';
 import { postReview } from './github.js';
 import type { PrRef } from './types.js';
 
@@ -50,24 +50,38 @@ async function main(): Promise<void> {
   const batches = chunkFiles(files);
   console.log(`  Batches: ${batches.length}`);
 
-  const reviews = [];
+  const results = [];
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
     const totalChanged = batch.reduce((s, f) => s + f.changedLineCount, 0);
     console.log(`\nReviewing batch ${i + 1}/${batches.length} (${totalChanged} changed lines)...`);
 
     const prompt = buildPrompt(prData, batch);
-    const review = callClaude(prompt);
-    reviews.push(review);
+    const result = callClaude(prompt);
+    results.push(result);
+
+    const u = result.usage;
+    console.log(
+      `  Tokens: ${u.inputTokens} in / ${u.outputTokens} out` +
+      (u.cacheReadTokens ? ` / ${u.cacheReadTokens} cache-read` : '') +
+      `  Cost: $${u.costUSD.toFixed(4)}`
+    );
 
     if (i < batches.length - 1) {
       await sleep(500);
     }
   }
 
-  const merged = mergeReviews(reviews);
+  const { review: merged, totalUsage } = mergeResults(results);
 
-  // Validate all comments against all files
+  if (batches.length > 1) {
+    console.log(
+      `\nTotal — Tokens: ${totalUsage.inputTokens} in / ${totalUsage.outputTokens} out` +
+      (totalUsage.cacheReadTokens ? ` / ${totalUsage.cacheReadTokens} cache-read` : '') +
+      `  Cost: $${totalUsage.costUSD.toFixed(4)}`
+    );
+  }
+
   const validComments = validateComments(merged.comments, files);
   if (validComments.length < merged.comments.length) {
     console.warn(
