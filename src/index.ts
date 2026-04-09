@@ -47,7 +47,9 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const modelIdx = args.indexOf('--model');
   const model = modelIdx !== -1 ? (args[modelIdx + 1] ?? 'claude-sonnet-4-6') : 'claude-sonnet-4-6';
-  const positional = args.filter((_, i) => i !== modelIdx && i !== modelIdx + 1);
+  const positional = modelIdx !== -1
+    ? args.filter((_, i) => i !== modelIdx && i !== modelIdx + 1)
+    : args;
   const arg = positional[0];
 
   if (!arg) {
