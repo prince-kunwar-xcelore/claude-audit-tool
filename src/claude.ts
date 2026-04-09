@@ -48,7 +48,8 @@ export function callClaude(prompt: string): ReviewOutput {
     throw new Error(`claude CLI failed: ${(err as Error).message}`);
   }
 
-  const trimmed = raw.trim();
+  // Strip markdown fences if Claude wraps the JSON despite instructions
+  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   try {
     return JSON.parse(trimmed) as ReviewOutput;
   } catch {
