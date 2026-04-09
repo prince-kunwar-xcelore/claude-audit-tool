@@ -84,6 +84,7 @@ export function callClaude(prompt: string, model: string): BatchResult {
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'pipe'],
         maxBuffer: 10 * 1024 * 1024,
+        timeout: 5 * 60 * 1000, // 5 min hard cap per batch
       }
     );
   } catch (err) {
@@ -165,6 +166,7 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 10 * 1024 * 1024,
+      timeout: 2 * 60 * 1000, // 2 min cap for synthesis
     });
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
