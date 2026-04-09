@@ -29,6 +29,20 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withRetry<T>(fn: () => T, retries = 3, label = ''): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return fn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      const delay = 2 ** attempt * 1000; // 2s, 4s
+      log.warn(`${label} attempt ${attempt}/${retries} failed — retrying in ${delay / 1000}s...`);
+      await sleep(delay);
+    }
+  }
+  throw new Error('unreachable');
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const modelIdx = args.indexOf('--model');
@@ -78,7 +92,11 @@ async function main(): Promise<void> {
     log.debug(`  Files in batch: ${batch.map((f) => `${f.path} (${f.changedLineCount} lines)`).join(', ')}`);
 
     const prompt = buildPrompt(prData, batch);
-    const result = callClaude(prompt, model);
+    const result = await withRetry(
+      () => callClaude(prompt, model),
+      3,
+      `Batch ${i + 1}/${batches.length}`
+    );
     results.push(result);
 
     const u = result.usage;
