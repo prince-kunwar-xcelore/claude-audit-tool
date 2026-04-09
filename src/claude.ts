@@ -62,6 +62,7 @@ interface ClaudeEnvelope {
   type: string;
   is_error: boolean;
   result: string;
+  structured_output?: ReviewOutput;
   total_cost_usd: number;
   usage: {
     input_tokens: number;
@@ -104,13 +105,18 @@ export function callClaude(prompt: string): BatchResult {
     throw new Error(`Claude returned an error: ${envelope.result}`);
   }
 
+  // --json-schema puts the parsed output in structured_output; result is empty
   let review: ReviewOutput;
-  try {
-    review = JSON.parse(envelope.result) as ReviewOutput;
-  } catch {
-    log.error('[error] Claude result is not valid JSON:');
-    log.error(envelope.result.slice(0, 500));
-    throw new Error('Failed to parse Claude review JSON');
+  if (envelope.structured_output) {
+    review = envelope.structured_output;
+  } else {
+    try {
+      review = JSON.parse(envelope.result) as ReviewOutput;
+    } catch {
+      log.error('[error] Claude result is not valid JSON:');
+      log.error(envelope.result.slice(0, 500));
+      throw new Error('Failed to parse Claude review JSON');
+    }
   }
 
   log.debug(`Claude parsed ${review.comments.length} comment(s), verdict: ${review.verdict}`);

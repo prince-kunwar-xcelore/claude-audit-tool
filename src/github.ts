@@ -51,10 +51,21 @@ export function postReview(
 
   log.debug(`GitHub review payload:\n${JSON.stringify(payload, null, 2)}`);
 
-  execSync(`gh api --method POST ${endpoint} --input -`, {
-    input: Buffer.from(JSON.stringify(payload)),
-    stdio: ['pipe', 'inherit', 'inherit'],
-  });
+  let response: string;
+  try {
+    response = execSync(`gh api --method POST ${endpoint} --input -`, {
+      input: Buffer.from(JSON.stringify(payload)),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
+    log.error(`GitHub API error: ${e.message}`);
+    if (e.stderr) log.error(`stderr: ${e.stderr.trim()}`);
+    if (e.stdout) log.error(`stdout: ${e.stdout.trim()}`);
+    throw err;
+  }
 
+  log.debug(`GitHub response:\n${response}`);
   log.info(`Review posted: ${review.verdict} (${comments.length} inline comment(s))`);
 }

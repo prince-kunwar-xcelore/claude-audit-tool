@@ -8,7 +8,7 @@ export type Logger = {
   error: (msg: string) => void;
   debug: (msg: string) => void;
   section: (title: string) => void;
-  close: () => void;
+  close: () => Promise<void>;
   filePath: string;
 };
 
@@ -37,7 +37,7 @@ function createLogger(label: string): Logger {
       console.log(`\n── ${title}`);
       stream.write(`${line}\n`);
     },
-    close: () => stream.end(),
+    close: () => new Promise<void>((resolve) => stream.end(resolve)),
   };
 }
 
@@ -46,7 +46,7 @@ function createNullLogger(): Logger {
   return {
     filePath: '',
     info: noop, warn: noop, error: noop, debug: noop,
-    section: noop, close: noop,
+    section: noop, close: () => Promise.resolve(),
   };
 }
 

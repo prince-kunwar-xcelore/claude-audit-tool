@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   const files = parseDiffString(prData.diff);
   if (files.length === 0) {
     log.info('No reviewable files found in diff. Exiting.');
-    log.close();
+    await log.close();
     process.exit(0);
   }
   log.info(`  Files to review: ${files.length}`);
@@ -112,11 +112,11 @@ async function main(): Promise<void> {
   log.info(`Total cost: $${totalUsage.costUSD.toFixed(4)}`);
   log.info(`Log file:  ${log.filePath}`);
 
-  log.close();
+  await log.close();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   log.error(`[fatal] ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
-  log.close();
+  await log.close();
   process.exit(1);
 });
