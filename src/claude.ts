@@ -72,13 +72,13 @@ interface ClaudeEnvelope {
   };
 }
 
-export function callClaude(prompt: string): BatchResult {
+export function callClaude(prompt: string, model: string): BatchResult {
   log.debug(`Claude prompt:\n${prompt}`);
 
   let raw: string;
   try {
     raw = execSync(
-      `claude -p --model claude-sonnet-4-6 --output-format json --json-schema '${OUTPUT_SCHEMA}'`,
+      `claude -p --model ${model} --output-format json --json-schema '${OUTPUT_SCHEMA}'`,
       {
         input: prompt,
         encoding: 'utf8',

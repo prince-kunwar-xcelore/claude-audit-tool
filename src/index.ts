@@ -30,9 +30,14 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const arg = process.argv[2];
+  const args = process.argv.slice(2);
+  const modelIdx = args.indexOf('--model');
+  const model = modelIdx !== -1 ? (args[modelIdx + 1] ?? 'claude-sonnet-4-6') : 'claude-sonnet-4-6';
+  const positional = args.filter((_, i) => i !== modelIdx && i !== modelIdx + 1);
+  const arg = positional[0];
+
   if (!arg) {
-    console.error('Usage: pr-audit <owner/repo#123 | PR URL>');
+    console.error('Usage: pr-audit <owner/repo#123 | PR URL> [--model <model>]');
     process.exit(1);
   }
 
@@ -42,6 +47,7 @@ async function main(): Promise<void> {
 
   log.section('RUN START');
   log.debug(`Command: ${process.argv.join(' ')}`);
+  log.info(`Model:    ${model}`);
   log.info(`Fetching PR ${ref.owner}/${ref.repo}#${ref.number}...`);
   console.log(`Logging to ${log.filePath}`);
 
@@ -72,7 +78,7 @@ async function main(): Promise<void> {
     log.debug(`  Files in batch: ${batch.map((f) => `${f.path} (${f.changedLineCount} lines)`).join(', ')}`);
 
     const prompt = buildPrompt(prData, batch);
-    const result = callClaude(prompt);
+    const result = callClaude(prompt, model);
     results.push(result);
 
     const u = result.usage;
