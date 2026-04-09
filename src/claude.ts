@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import type { PrData, ParsedFile, ReviewOutput, TokenUsage, BatchResult } from './types.js';
 import { renderDiffForPrompt } from './diff.js';
+import { log } from './logger.js';
 
 const SYSTEM_RULES = `You are a senior software engineer reviewing a GitHub PR.
 Output ONLY valid JSON — no prose, no markdown fences, no explanation.
@@ -71,6 +72,8 @@ interface ClaudeEnvelope {
 }
 
 export function callClaude(prompt: string): BatchResult {
+  log.debug(`Claude prompt:\n${prompt}`);
+
   let raw: string;
   try {
     raw = execSync(
@@ -86,12 +89,14 @@ export function callClaude(prompt: string): BatchResult {
     throw new Error(`claude CLI failed: ${(err as Error).message}`);
   }
 
+  log.debug(`Claude raw envelope:\n${raw.trim()}`);
+
   let envelope: ClaudeEnvelope;
   try {
     envelope = JSON.parse(raw.trim()) as ClaudeEnvelope;
   } catch {
-    console.error('[error] Failed to parse claude envelope:');
-    console.error(raw.trim().slice(0, 500));
+    log.error('[error] Failed to parse claude envelope:');
+    log.error(raw.trim().slice(0, 500));
     throw new Error('Failed to parse claude CLI JSON envelope');
   }
 
@@ -103,9 +108,14 @@ export function callClaude(prompt: string): BatchResult {
   try {
     review = JSON.parse(envelope.result) as ReviewOutput;
   } catch {
-    console.error('[error] Claude result is not valid JSON:');
-    console.error(envelope.result.slice(0, 500));
+    log.error('[error] Claude result is not valid JSON:');
+    log.error(envelope.result.slice(0, 500));
     throw new Error('Failed to parse Claude review JSON');
+  }
+
+  log.debug(`Claude parsed ${review.comments.length} comment(s), verdict: ${review.verdict}`);
+  for (const c of review.comments) {
+    log.debug(`  [${c.severity}] ${c.path}:${c.line} — ${c.body}`);
   }
 
   const usage: TokenUsage = {

@@ -1,19 +1,24 @@
 import { execSync } from 'child_process';
 import type { PrRef, PrData, ReviewComment, ReviewOutput } from './types.js';
+import { log } from './logger.js';
 
 export function fetchPr(ref: PrRef): PrData {
   const { owner, repo, number } = ref;
   const repoSlug = `${owner}/${repo}`;
 
+  log.debug(`gh pr view ${number} --repo ${repoSlug} --json title,body,headRefOid`);
   const metaRaw = execSync(
     `gh pr view ${number} --repo ${repoSlug} --json title,body,headRefOid`,
     { encoding: 'utf8' }
   );
   const meta = JSON.parse(metaRaw) as { title: string; body: string; headRefOid: string };
+  log.debug(`PR metadata: ${JSON.stringify({ title: meta.title, headRefOid: meta.headRefOid, bodyLength: meta.body?.length ?? 0 })}`);
 
+  log.debug(`gh pr diff ${number} --repo ${repoSlug} --patch`);
   const diff = execSync(`gh pr diff ${number} --repo ${repoSlug} --patch`, {
     encoding: 'utf8',
   });
+  log.debug(`Diff fetched: ${diff.length} bytes`);
 
   return {
     title: meta.title,
@@ -30,6 +35,7 @@ export function postReview(
   comments: ReviewComment[]
 ): void {
   const { owner, repo, number } = ref;
+  const endpoint = `/repos/${owner}/${repo}/pulls/${number}/reviews`;
 
   const payload = {
     commit_id: headRefOid,
@@ -43,15 +49,12 @@ export function postReview(
     })),
   };
 
-  const json = JSON.stringify(payload);
+  log.debug(`GitHub review payload:\n${JSON.stringify(payload, null, 2)}`);
 
-  execSync(
-    `gh api --method POST /repos/${owner}/${repo}/pulls/${number}/reviews --input -`,
-    {
-      input: Buffer.from(json),
-      stdio: ['pipe', 'inherit', 'inherit'],
-    }
-  );
+  execSync(`gh api --method POST ${endpoint} --input -`, {
+    input: Buffer.from(JSON.stringify(payload)),
+    stdio: ['pipe', 'inherit', 'inherit'],
+  });
 
-  console.log(`\nReview posted: ${review.verdict} (${comments.length} inline comment(s))`);
+  log.info(`Review posted: ${review.verdict} (${comments.length} inline comment(s))`);
 }

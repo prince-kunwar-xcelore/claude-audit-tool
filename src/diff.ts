@@ -1,5 +1,6 @@
 import parseDiff from 'parse-diff';
 import type { ParsedFile, ReviewComment } from './types.js';
+import { log } from './logger.js';
 
 const SKIP_PATTERNS = [
   /package-lock\.json$/,
@@ -70,7 +71,10 @@ export function parseDiffString(rawDiff: string): ParsedFile[] {
   for (const file of files) {
     const path = file.to ?? file.from ?? '';
     if (!path || path === '/dev/null') continue;
-    if (shouldSkip(path)) continue;
+    if (shouldSkip(path)) {
+      log.debug(`Skipping file: ${path}`);
+      continue;
+    }
 
     let chunks = file.chunks;
     let changedLineCount = countChangedLines(chunks);
@@ -123,11 +127,11 @@ export function validateComments(
   return comments.filter((c) => {
     const lines = lineMap.get(c.path);
     if (!lines) {
-      console.warn(`[warn] dropping comment — unknown file: ${c.path}`);
+      log.warn(`[warn] dropping comment — unknown file: ${c.path}`);
       return false;
     }
     if (!lines.has(c.line)) {
-      console.warn(`[warn] dropping comment — line ${c.line} not in diff: ${c.path}`);
+      log.warn(`[warn] dropping comment — line ${c.line} not in diff: ${c.path}`);
       return false;
     }
     return true;
