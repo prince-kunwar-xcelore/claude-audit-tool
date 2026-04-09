@@ -2,7 +2,7 @@
 import process from 'node:process';
 import { fetchPr } from './github.js';
 import { parseDiffString, chunkFiles, validateComments } from './diff.js';
-import { buildPrompt, callClaude, mergeResults } from './claude.js';
+import { buildPrompt, callClaude, mergeResults, synthesizeSummaries } from './claude.js';
 import { postReview } from './github.js';
 import { initLogger, log } from './logger.js';
 import type { PrRef } from './types.js';
@@ -120,6 +120,17 @@ async function main(): Promise<void> {
   }
 
   const { review: merged, totalUsage } = mergeResults(results);
+
+  if (batches.length > 1) {
+    log.section('SYNTHESIZING SUMMARY');
+    log.info('Synthesizing batch summaries into one...');
+    merged.summary = synthesizeSummaries(
+      prData.title,
+      results.map((r) => r.review.summary),
+      merged.verdict,
+      model
+    );
+  }
 
   if (batches.length > 1) {
     const totalLine =

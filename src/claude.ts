@@ -139,6 +139,45 @@ export function callClaude(prompt: string, model: string): BatchResult {
   return { review, usage };
 }
 
+export function synthesizeSummaries(
+  prTitle: string,
+  summaries: string[],
+  verdict: ReviewOutput['verdict'],
+  model: string
+): string {
+  const prompt = `You are a senior software engineer. A GitHub PR was reviewed in ${summaries.length} batches.
+Below are the individual batch summaries. Write a single concise overall review summary (2-4 sentences) that synthesizes the key findings. Do not repeat yourself. Focus on the most important issues found.
+
+PR Title: ${prTitle}
+Overall verdict: ${verdict}
+
+Batch summaries:
+${summaries.map((s, i) => `[Batch ${i + 1}]: ${s}`).join('\n\n')}
+
+Output ONLY the summary text — no JSON, no markdown, no labels.`;
+
+  log.debug(`Synthesis prompt:\n${prompt}`);
+
+  let raw: string;
+  try {
+    raw = execSync(`claude -p --model ${model}`, {
+      input: prompt,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
+    log.error(`claude CLI error (synthesis): ${e.message}`);
+    if (e.stderr) log.error(`stderr: ${e.stderr.trim()}`);
+    throw err;
+  }
+
+  const summary = raw.trim();
+  log.debug(`Synthesized summary:\n${summary}`);
+  return summary;
+}
+
 export function mergeResults(results: BatchResult[]): { review: ReviewOutput; totalUsage: TokenUsage } {
   const verdictPriority: Record<string, number> = {
     REQUEST_CHANGES: 2,
