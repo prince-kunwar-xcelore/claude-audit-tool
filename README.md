@@ -23,15 +23,20 @@ pnpm link --global
 ```bash
 pr-audit owner/repo#123
 pr-audit https://github.com/owner/repo/pull/123
+
+# Use a different Claude model (default: claude-sonnet-4-6)
+pr-audit owner/repo#123 --model claude-opus-4-5
 ```
 
 ## How it works
 
-1. Fetches PR metadata and unified diff via `gh` CLI
+1. Fetches PR metadata and squashed base→HEAD diff via `gh` CLI
 2. Filters out lock files and generated files
-3. Chunks the diff into batches of ≤600 changed lines
-4. Sends each batch to Claude (`claude -p`) with a structured prompt
-5. Merges results and posts a single review to GitHub via the PR Reviews API
+3. Prints a cost estimate based on diff size before any Claude calls
+4. Chunks the diff into batches (≤1000 rendered lines each), truncating files over 600 added lines with a notice so Claude knows the file is partial
+5. Sends each batch to Claude (`claude -p`) with a structured JSON prompt — failed batches are retried up to 3 times with exponential backoff
+6. Synthesizes all batch summaries into a single coherent review summary via a final Claude call
+7. Posts one native GitHub PR review with inline comments and the synthesized summary
 
 ## Run logs
 
