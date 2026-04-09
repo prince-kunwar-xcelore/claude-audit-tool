@@ -33,6 +33,32 @@ pr-audit https://github.com/owner/repo/pull/123
 4. Sends each batch to Claude (`claude -p`) with a structured prompt
 5. Merges results and posts a single review to GitHub via the PR Reviews API
 
+## Run logs
+
+Every run is logged to `~/.pr-audit/logs/` with the filename pattern:
+
+```
+YYYY-MM-DDTHH-MM-SS_OWNER_REPO_PRNUM.log
+```
+
+Each log captures the full execution trace at two levels:
+
+- **INFO** — high-level flow: PR metadata, batch sizes, verdict, comment count, total cost
+- **DEBUG** — full detail: Claude prompts, raw API responses, token usage per batch, individual comments, GitHub review payload
+
+The log file path is printed at the end of every run.
+
+```bash
+# View latest run
+cat ~/.pr-audit/logs/$(ls -1t ~/.pr-audit/logs/ | head -1)
+
+# View only errors across all runs
+grep "\[ERROR\]" ~/.pr-audit/logs/*.log
+
+# View summaries across all runs
+grep -A 5 "RUN SUMMARY" ~/.pr-audit/logs/*.log
+```
+
 ## Development
 
 ```bash

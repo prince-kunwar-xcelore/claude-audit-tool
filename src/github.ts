@@ -14,8 +14,8 @@ export function fetchPr(ref: PrRef): PrData {
   const meta = JSON.parse(metaRaw) as { title: string; body: string; headRefOid: string };
   log.debug(`PR metadata: ${JSON.stringify({ title: meta.title, headRefOid: meta.headRefOid, bodyLength: meta.body?.length ?? 0 })}`);
 
-  log.debug(`gh pr diff ${number} --repo ${repoSlug} --patch`);
-  const diff = execSync(`gh pr diff ${number} --repo ${repoSlug} --patch`, {
+  log.debug(`gh pr diff ${number} --repo ${repoSlug}`);
+  const diff = execSync(`gh pr diff ${number} --repo ${repoSlug}`, {
     encoding: 'utf8',
   });
   log.debug(`Diff fetched: ${diff.length} bytes`);

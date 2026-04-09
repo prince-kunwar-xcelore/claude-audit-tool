@@ -82,12 +82,16 @@ export function callClaude(prompt: string): BatchResult {
       {
         input: prompt,
         encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'inherit'],
+        stdio: ['pipe', 'pipe', 'pipe'],
         maxBuffer: 10 * 1024 * 1024,
       }
     );
   } catch (err) {
-    throw new Error(`claude CLI failed: ${(err as Error).message}`);
+    const e = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
+    log.error(`claude CLI error: ${e.message}`);
+    if (e.stderr) log.error(`stderr: ${e.stderr.trim()}`);
+    if (e.stdout) log.error(`stdout: ${e.stdout.trim()}`);
+    throw err;
   }
 
   log.debug(`Claude raw envelope:\n${raw.trim()}`);
