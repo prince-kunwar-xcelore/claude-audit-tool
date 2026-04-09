@@ -15,7 +15,9 @@ export interface ParsedFile {
   path: string;
   chunks: import('parse-diff').Chunk[];
   commentableLines: Set<number>;
-  changedLineCount: number;
+  changedLineCount: number;   // additions only — used for display
+  renderedLineCount: number;  // all lines sent to Claude (additions + deletions + context)
+  truncated: boolean;         // true if file was cut at MAX_ADDITIONS_PER_FILE
 }
 
 export interface ReviewComment {

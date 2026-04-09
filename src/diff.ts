@@ -14,7 +14,8 @@ const SKIP_PATTERNS = [
   /^out\//,
 ];
 
-const MAX_CHANGED_LINES_PER_CHUNK = 600;
+const MAX_ADDITIONS_PER_FILE = 600;      // per-file truncation: max added lines before cutting
+const MAX_RENDERED_LINES_PER_BATCH = 1000; // per-batch limit: total lines actually sent to Claude
 
 function shouldSkip(path: string): boolean {
   return SKIP_PATTERNS.some((p) => p.test(path));
@@ -26,6 +27,14 @@ function countChangedLines(chunks: parseDiff.Chunk[]): number {
     for (const change of chunk.changes) {
       if (change.type === 'add') count++;
     }
+  }
+  return count;
+}
+
+function countRenderedLines(chunks: parseDiff.Chunk[]): number {
+  let count = 0;
+  for (const chunk of chunks) {
+    count += chunk.changes.length; // add + del + normal (context) — what actually goes to Claude
   }
   return count;
 }
@@ -78,10 +87,11 @@ export function parseDiffString(rawDiff: string): ParsedFile[] {
 
     let chunks = file.chunks;
     let changedLineCount = countChangedLines(chunks);
+    const truncated = changedLineCount > MAX_ADDITIONS_PER_FILE;
 
-    if (changedLineCount > MAX_CHANGED_LINES_PER_CHUNK) {
-      chunks = truncateChunks(chunks, MAX_CHANGED_LINES_PER_CHUNK);
-      changedLineCount = MAX_CHANGED_LINES_PER_CHUNK;
+    if (truncated) {
+      chunks = truncateChunks(chunks, MAX_ADDITIONS_PER_FILE);
+      changedLineCount = MAX_ADDITIONS_PER_FILE;
     }
 
     result.push({
@@ -89,6 +99,8 @@ export function parseDiffString(rawDiff: string): ParsedFile[] {
       chunks,
       commentableLines: buildCommentableLines(chunks),
       changedLineCount,
+      renderedLineCount: countRenderedLines(chunks),
+      truncated,
     });
   }
 
@@ -101,13 +113,13 @@ export function chunkFiles(files: ParsedFile[]): ParsedFile[][] {
   let currentCount = 0;
 
   for (const file of files) {
-    if (currentCount + file.changedLineCount > MAX_CHANGED_LINES_PER_CHUNK && current.length > 0) {
+    if (currentCount + file.renderedLineCount > MAX_RENDERED_LINES_PER_BATCH && current.length > 0) {
       batches.push(current);
       current = [];
       currentCount = 0;
     }
     current.push(file);
-    currentCount += file.changedLineCount;
+    currentCount += file.renderedLineCount;
   }
 
   if (current.length > 0) batches.push(current);
@@ -150,6 +162,9 @@ export function renderDiffForPrompt(files: ParsedFile[]): string {
           change.type === 'add' ? '+' : change.type === 'del' ? '-' : ' ';
         parts.push(`${prefix}${change.content.slice(1)}`);
       }
+    }
+    if (file.truncated) {
+      parts.push(`\\ [file truncated — showing first ${MAX_ADDITIONS_PER_FILE} added lines only, remainder not reviewed]`);
     }
   }
 
