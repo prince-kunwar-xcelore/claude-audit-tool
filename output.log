@@ -1,0 +1,23 @@
+
+> pr-audit@1.0.0 dev /home/dell-4xz8ls3/Projects/Personal/claude_audit_tool
+> tsx src/index.ts https://github.com/NoorCapital/MyNoorV2/pull/158
+
+Fetching PR NoorCapital/MyNoorV2#158...
+  Title: Feat/frontend/user management/user listing
+  Files to review: 20
+  Batches: 5
+
+Reviewing batch 1/5 (243 changed lines)...
+[error] Claude returned non-JSON output:
+```json
+{
+  "summary": "The PR adds a user listing route and a Filter component. The filter UI is well-structured, but there are logic bugs around checkbox v-model object reference equality, a misuse of lazy async data with await, and the selected state is never re-synced when filterModel changes externally.",
+  "verdict": "REQUEST_CHANGES",
+  "comments": [
+    {
+      "path": "MyNoor.WebClient/app/components/users/list/Filter.vue",
+      "line": 14,
+      "severity": "warning",
+      "body": "`
+[fatal] Failed to parse Claude response as JSON
+ ELIFECYCLE  Command failed with exit code 1.
