@@ -82,6 +82,14 @@ async function main(): Promise<void> {
   const batches = chunkFiles(files);
   log.info(`  Batches: ${batches.length}`);
 
+  // Rough cost estimate: rendered lines × ~12 tokens/line + 800-token system prompt per batch
+  // Sonnet input $3/1M, output $15/1M (assume ~800 output tokens per batch)
+  const totalRenderedLines = files.reduce((s, f) => s + f.renderedLineCount, 0);
+  const estInputTokens = totalRenderedLines * 12 + batches.length * 800;
+  const estOutputTokens = batches.length * 800;
+  const estCost = (estInputTokens * 3 + estOutputTokens * 15) / 1_000_000;
+  log.info(`  Est. cost: ~$${estCost.toFixed(3)} (${totalRenderedLines} rendered lines)`);
+
   const results = [];
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
