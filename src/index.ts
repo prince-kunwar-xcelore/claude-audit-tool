@@ -51,7 +51,10 @@ async function main(): Promise<void> {
   const authTokenIdx = args.indexOf('--auth-token');
   const authToken = authTokenIdx !== -1 ? (args[authTokenIdx + 1] ?? '') : '';
 
-  const skipIdxs = new Set([modelIdx, modelIdx + 1, authTokenIdx, authTokenIdx + 1].filter(i => i >= 0));
+  const skipIdxs = new Set([
+    ...(modelIdx >= 0 ? [modelIdx, modelIdx + 1] : []),
+    ...(authTokenIdx >= 0 ? [authTokenIdx, authTokenIdx + 1] : []),
+  ]);
   const positional = args.filter((_, i) => !skipIdxs.has(i));
   const arg = positional[0];
 
