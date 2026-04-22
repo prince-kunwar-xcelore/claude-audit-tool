@@ -1,4 +1,7 @@
 import { execSync } from 'child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { PrData, ParsedFile, ReviewOutput, TokenUsage, BatchResult } from './types.js';
 import { renderDiffForPrompt } from './diff.js';
 import { log } from './logger.js';
@@ -72,10 +75,29 @@ interface ClaudeEnvelope {
   };
 }
 
+/**
+ * Write an OAuth token to a temp HOME directory so the claude CLI can find it
+ * in ~/.claude/.credentials.json. Returns the temp dir path; caller must clean up.
+ */
+function makeTempHome(oauthToken: string): string {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-home-'));
+  const claudeDir = path.join(tempHome, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(
+    path.join(claudeDir, '.credentials.json'),
+    JSON.stringify({ claudeAiOauth: { accessToken: oauthToken } }),
+    { mode: 0o600 }
+  );
+  return tempHome;
+}
+
 export function callClaude(prompt: string, model: string, authToken = ''): BatchResult {
   log.debug(`Claude prompt:\n${prompt}`);
 
-  const env = authToken ? { ...process.env, ANTHROPIC_API_KEY: authToken } : process.env;
+  let tempHome: string | null = null;
+  const env = authToken
+    ? (() => { tempHome = makeTempHome(authToken); return { ...process.env, HOME: tempHome }; })()
+    : process.env;
 
   let raw: string;
   try {
@@ -96,6 +118,8 @@ export function callClaude(prompt: string, model: string, authToken = ''): Batch
     if (e.stderr) log.error(`stderr: ${e.stderr.trim()}`);
     if (e.stdout) log.error(`stdout: ${e.stdout.trim()}`);
     throw err;
+  } finally {
+    if (tempHome) fs.rmSync(tempHome, { recursive: true, force: true });
   }
 
   log.debug(`Claude raw envelope:\n${raw.trim()}`);
@@ -163,7 +187,10 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
 
   log.debug(`Synthesis prompt:\n${prompt}`);
 
-  const env = authToken ? { ...process.env, ANTHROPIC_API_KEY: authToken } : process.env;
+  let tempHome: string | null = null;
+  const env = authToken
+    ? (() => { tempHome = makeTempHome(authToken); return { ...process.env, HOME: tempHome }; })()
+    : process.env;
 
   let raw: string;
   try {
@@ -180,6 +207,8 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
     log.error(`claude CLI error (synthesis): ${e.message}`);
     if (e.stderr) log.error(`stderr: ${e.stderr.trim()}`);
     throw err;
+  } finally {
+    if (tempHome) fs.rmSync(tempHome, { recursive: true, force: true });
   }
 
   const summary = raw.trim();
