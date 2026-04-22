@@ -47,13 +47,16 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const modelIdx = args.indexOf('--model');
   const model = modelIdx !== -1 ? (args[modelIdx + 1] ?? 'claude-sonnet-4-6') : 'claude-sonnet-4-6';
-  const positional = modelIdx !== -1
-    ? args.filter((_, i) => i !== modelIdx && i !== modelIdx + 1)
-    : args;
+
+  const authTokenIdx = args.indexOf('--auth-token');
+  const authToken = authTokenIdx !== -1 ? (args[authTokenIdx + 1] ?? '') : '';
+
+  const skipIdxs = new Set([modelIdx, modelIdx + 1, authTokenIdx, authTokenIdx + 1].filter(i => i >= 0));
+  const positional = args.filter((_, i) => !skipIdxs.has(i));
   const arg = positional[0];
 
   if (!arg) {
-    console.error('Usage: pr-audit <owner/repo#123 | PR URL> [--model <model>]');
+    console.error('Usage: pr-audit <owner/repo#123 | PR URL> [--model <model>] [--auth-token <token>]');
     process.exit(1);
   }
 
@@ -103,7 +106,7 @@ async function main(): Promise<void> {
 
     const prompt = buildPrompt(prData, batch);
     const result = await withRetry(
-      () => callClaude(prompt, model),
+      () => callClaude(prompt, model, authToken),
       3,
       `Batch ${i + 1}/${batches.length}`
     );
@@ -130,7 +133,8 @@ async function main(): Promise<void> {
       prData.title,
       results.map((r) => r.review.summary),
       merged.verdict,
-      model
+      model,
+      authToken
     );
   }
 

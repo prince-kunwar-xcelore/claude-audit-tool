@@ -26,6 +26,9 @@ pr-audit https://github.com/owner/repo/pull/123
 
 # Use a different Claude model (default: claude-sonnet-4-6)
 pr-audit owner/repo#123 --model claude-opus-4-5
+
+# Use a specific Anthropic API key (otherwise uses existing claude CLI auth)
+pr-audit owner/repo#123 --auth-token sk-ant-...
 ```
 
 ## How it works

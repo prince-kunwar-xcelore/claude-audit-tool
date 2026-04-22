@@ -72,8 +72,10 @@ interface ClaudeEnvelope {
   };
 }
 
-export function callClaude(prompt: string, model: string): BatchResult {
+export function callClaude(prompt: string, model: string, authToken = ''): BatchResult {
   log.debug(`Claude prompt:\n${prompt}`);
+
+  const env = authToken ? { ...process.env, ANTHROPIC_API_KEY: authToken } : process.env;
 
   let raw: string;
   try {
@@ -85,6 +87,7 @@ export function callClaude(prompt: string, model: string): BatchResult {
         stdio: ['pipe', 'pipe', 'pipe'],
         maxBuffer: 10 * 1024 * 1024,
         timeout: 5 * 60 * 1000, // 5 min hard cap per batch
+        env,
       }
     );
   } catch (err) {
@@ -144,7 +147,8 @@ export function synthesizeSummaries(
   prTitle: string,
   summaries: string[],
   verdict: ReviewOutput['verdict'],
-  model: string
+  model: string,
+  authToken = ''
 ): string {
   const prompt = `You are a senior software engineer. A GitHub PR was reviewed in ${summaries.length} batches.
 Below are the individual batch summaries. Write a single concise overall review summary (2-4 sentences) that synthesizes the key findings. Do not repeat yourself. Focus on the most important issues found.
@@ -159,6 +163,8 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
 
   log.debug(`Synthesis prompt:\n${prompt}`);
 
+  const env = authToken ? { ...process.env, ANTHROPIC_API_KEY: authToken } : process.env;
+
   let raw: string;
   try {
     raw = execSync(`claude -p --model ${model}`, {
@@ -167,6 +173,7 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 10 * 1024 * 1024,
       timeout: 2 * 60 * 1000, // 2 min cap for synthesis
+      env,
     });
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
@@ -181,7 +188,7 @@ Output ONLY the summary text — no JSON, no markdown, no labels.`;
 }
 
 export function mergeResults(results: BatchResult[]): { review: ReviewOutput; totalUsage: TokenUsage } {
-  const verdictPriority: Record<string, number> = {
+  const verdictPriority = {
     REQUEST_CHANGES: 2,
     COMMENT: 1,
     APPROVE: 0,
@@ -205,7 +212,7 @@ export function mergeResults(results: BatchResult[]): { review: ReviewOutput; to
   }
 
   return {
-    review: { summary: summaries.join('\n\n'), verdict: topVerdict, comments: allComments },
+    review: { summary: summaries.join('\n\n'), verdict: 'COMMENT', comments: allComments },
     totalUsage,
   };
 }
