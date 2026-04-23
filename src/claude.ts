@@ -273,7 +273,7 @@ export function mergeResults(results: BatchResult[]): { review: ReviewOutput; to
   }
 
   return {
-    review: { summary: summaries.join('\n\n'), verdict: 'COMMENT', comments: allComments },
+    review: { summary: summaries.join('\n\n'), verdict: topVerdict, comments: allComments },
     totalUsage,
   };
 }
