@@ -76,16 +76,48 @@ interface ClaudeEnvelope {
 }
 
 /**
- * Write an OAuth token to a temp HOME directory so the claude CLI can find it
+ * Write credentials to a temp HOME directory so the claude CLI can find them
  * in ~/.claude/.credentials.json. Returns the temp dir path; caller must clean up.
+ *
+ * Accepts either a full credentials JSON string (from claude-token-proxy ≥ v2)
+ * or a bare access token (legacy). The CLI requires the complete credentials
+ * object (accessToken, expiresAt, scopes, etc.) — a bare token causes
+ * "Not logged in" errors.
  */
-function makeTempHome(oauthToken: string): string {
+function makeTempHome(credentialsOrToken: string): string {
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-home-'));
   const claudeDir = path.join(tempHome, '.claude');
   fs.mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
+
+  // Detect whether we received full credentials JSON or a bare token string
+  let credentialsJson: string;
+  try {
+    const parsed = JSON.parse(credentialsOrToken);
+    if (parsed?.claudeAiOauth?.accessToken) {
+      // Full credentials object — use as-is
+      credentialsJson = credentialsOrToken;
+    } else {
+      // Some other JSON — treat the raw string as a token
+      credentialsJson = JSON.stringify({
+        claudeAiOauth: {
+          accessToken: credentialsOrToken,
+          expiresAt: Date.now() + 24 * 3600 * 1000,
+        },
+      });
+    }
+  } catch {
+    // Not JSON — treat as a bare access token (legacy proxy)
+    credentialsJson = JSON.stringify({
+      claudeAiOauth: {
+        accessToken: credentialsOrToken,
+        expiresAt: Date.now() + 24 * 3600 * 1000,
+      },
+    });
+  }
+
   fs.writeFileSync(
     path.join(claudeDir, '.credentials.json'),
-    JSON.stringify({ claudeAiOauth: { accessToken: oauthToken } }),
+    credentialsJson,
     { mode: 0o600 }
   );
   return tempHome;
