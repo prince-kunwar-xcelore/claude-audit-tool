@@ -1,14 +1,14 @@
 export interface PrRef {
-  owner: string;
-  repo: string;
+  slug: string;
   number: number;
 }
 
 export interface PrData {
   title: string;
   body: string;
-  headRefOid: string;
+  headSha: string;
   diff: string;
+  providerMeta?: Record<string, unknown>;
 }
 
 export interface ParsedFile {

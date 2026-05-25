@@ -12,7 +12,8 @@ import type {
 import { renderDiffForPrompt } from "./diff.js";
 import { log } from "./logger.js";
 
-const SYSTEM_RULES = `You are a senior software engineer reviewing a GitHub PR.
+function systemRules(reviewTerm: string): string {
+  return `You are a senior software engineer reviewing a ${reviewTerm}.
 Output ONLY valid JSON — no prose, no markdown fences, no explanation.
 
 Schema:
@@ -30,11 +31,12 @@ Rules:
 - Ignore style, formatting, and nitpicks
 - Be concise (1-3 sentences per comment)
 - If no issues found, return an empty comments array and verdict APPROVE`;
+}
 
-export function buildPrompt(prData: PrData, files: ParsedFile[]): string {
+export function buildPrompt(prData: PrData, files: ParsedFile[], reviewTerm: string): string {
   const diff = renderDiffForPrompt(files);
 
-  return `${SYSTEM_RULES}
+  return `${systemRules(reviewTerm)}
 
 PR Title: ${prData.title}
 
@@ -227,8 +229,9 @@ export function synthesizeSummaries(
   verdict: ReviewOutput["verdict"],
   model: string,
   authToken = "",
+  reviewTerm = "pull request",
 ): string {
-  const prompt = `You are a senior software engineer. A GitHub PR was reviewed in ${summaries.length} batches.
+  const prompt = `You are a senior software engineer. A ${reviewTerm} was reviewed in ${summaries.length} batches.
 Below are the individual batch summaries. Write a single concise overall review summary (2-4 sentences) that synthesizes the key findings. Do not repeat yourself. Focus on the most important issues found.
 
 PR Title: ${prTitle}

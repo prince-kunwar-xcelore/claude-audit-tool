@@ -1,29 +1,9 @@
 #!/usr/bin/env node
 import process from 'node:process';
-import { fetchPr } from './github.js';
+import { resolveProvider } from './provider.js';
 import { parseDiffString, chunkFiles, validateComments } from './diff.js';
 import { buildPrompt, callClaude, mergeResults, synthesizeSummaries } from './claude.js';
-import { postReview } from './github.js';
 import { initLogger, log } from './logger.js';
-import type { PrRef } from './types.js';
-
-function parseArg(arg: string): PrRef {
-  // owner/repo#123
-  const shortMatch = arg.match(/^([^/]+)\/([^#]+)#(\d+)$/);
-  if (shortMatch) {
-    return { owner: shortMatch[1], repo: shortMatch[2], number: parseInt(shortMatch[3], 10) };
-  }
-
-  // https://github.com/owner/repo/pull/123
-  const urlMatch = arg.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-  if (urlMatch) {
-    return { owner: urlMatch[1], repo: urlMatch[2], number: parseInt(urlMatch[3], 10) };
-  }
-
-  throw new Error(
-    `Invalid PR reference: "${arg}"\nExpected: owner/repo#123 or https://github.com/owner/repo/pull/123`
-  );
-}
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,7 +15,7 @@ async function withRetry<T>(fn: () => T, retries = 3, label = ''): Promise<T> {
       return fn();
     } catch (err) {
       if (attempt === retries) throw err;
-      const delay = 2 ** attempt * 1000; // 2s, 4s
+      const delay = 2 ** attempt * 1000;
       log.warn(`${label} attempt ${attempt}/${retries} failed — retrying in ${delay / 1000}s...`);
       await sleep(delay);
     }
@@ -51,32 +31,43 @@ async function main(): Promise<void> {
   const authTokenIdx = args.indexOf('--auth-token');
   const authToken = authTokenIdx !== -1 ? (args[authTokenIdx + 1] ?? '') : '';
 
+  const providerIdx = args.indexOf('--provider');
+  const providerHint = providerIdx !== -1 ? (args[providerIdx + 1] ?? '') : '';
+
   const skipIdxs = new Set([
     ...(modelIdx >= 0 ? [modelIdx, modelIdx + 1] : []),
     ...(authTokenIdx >= 0 ? [authTokenIdx, authTokenIdx + 1] : []),
+    ...(providerIdx >= 0 ? [providerIdx, providerIdx + 1] : []),
   ]);
   const positional = args.filter((_, i) => !skipIdxs.has(i));
   const arg = positional[0];
 
   if (!arg) {
-    console.error('Usage: pr-audit <owner/repo#123 | PR URL> [--model <model>] [--auth-token <token>]');
+    console.error(
+      'Usage: pr-audit <ref> [--model <model>] [--auth-token <token>] [--provider github|gitlab]\n' +
+      '\n' +
+      'Supported formats:\n' +
+      '  GitHub:  owner/repo#123  or  https://github.com/owner/repo/pull/123\n' +
+      '  GitLab:  group/project!123  or  https://gitlab.com/group/project/-/merge_requests/123',
+    );
     process.exit(1);
   }
 
-  const ref = parseArg(arg);
-  const label = `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}_${ref.owner}_${ref.repo}_${ref.number}`;
+  const { provider, ref } = resolveProvider(arg, providerHint || undefined);
+  const label = `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}_${ref.slug.replace(/\//g, '_')}_${ref.number}`;
   initLogger(label);
 
   log.section('RUN START');
   log.debug(`Command: ${process.argv.join(' ')}`);
+  log.info(`Provider: ${provider.name}`);
   log.info(`Model:    ${model}`);
-  log.info(`Fetching PR ${ref.owner}/${ref.repo}#${ref.number}...`);
+  log.info(`Fetching ${provider.reviewTerm} ${ref.slug}#${ref.number}...`);
   console.log(`Logging to ${log.filePath}`);
 
-  const prData = fetchPr(ref);
+  const prData = provider.fetchPr(ref);
   log.info(`  Title: ${prData.title}`);
   log.debug(`  Body: ${prData.body.slice(0, 300)}${prData.body.length > 300 ? '…' : ''}`);
-  log.debug(`  headRefOid: ${prData.headRefOid}`);
+  log.debug(`  headSha: ${prData.headSha}`);
 
   const files = parseDiffString(prData.diff);
   if (files.length === 0) {
@@ -90,8 +81,6 @@ async function main(): Promise<void> {
   const batches = chunkFiles(files);
   log.info(`  Batches: ${batches.length}`);
 
-  // Rough cost estimate: rendered lines × ~12 tokens/line + 800-token system prompt per batch
-  // Sonnet input $3/1M, output $15/1M (assume ~800 output tokens per batch)
   const totalRenderedLines = files.reduce((s, f) => s + f.renderedLineCount, 0);
   const estInputTokens = totalRenderedLines * 12 + batches.length * 800;
   const estOutputTokens = batches.length * 800;
@@ -107,11 +96,11 @@ async function main(): Promise<void> {
     log.info(`Reviewing batch ${i + 1}/${batches.length} (${totalChanged} changed lines)...`);
     log.debug(`  Files in batch: ${batch.map((f) => `${f.path} (${f.changedLineCount} lines)`).join(', ')}`);
 
-    const prompt = buildPrompt(prData, batch);
+    const prompt = buildPrompt(prData, batch, provider.reviewTerm);
     const result = await withRetry(
       () => callClaude(prompt, model, authToken),
       3,
-      `Batch ${i + 1}/${batches.length}`
+      `Batch ${i + 1}/${batches.length}`,
     );
     results.push(result);
 
@@ -137,7 +126,8 @@ async function main(): Promise<void> {
       results.map((r) => r.review.summary),
       merged.verdict,
       model,
-      authToken
+      authToken,
+      provider.reviewTerm,
     );
   }
 
@@ -156,7 +146,7 @@ async function main(): Promise<void> {
 
   log.section('POSTING REVIEW');
   log.info(`Posting review (${merged.verdict})...`);
-  postReview(ref, prData.headRefOid, merged, validComments);
+  provider.postReview(ref, prData.headSha, merged, validComments);
 
   log.section('RUN SUMMARY');
   log.info(`Verdict:   ${merged.verdict}`);
