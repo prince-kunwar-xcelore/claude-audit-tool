@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import { resolveProvider } from './provider.js';
+import { resolveEngine } from './engine.js';
 import { parseDiffString, chunkFiles, validateComments } from './diff.js';
-import { buildPrompt, callClaude, mergeResults, synthesizeSummaries } from './claude.js';
+import { buildPrompt, buildSynthesisPrompt, mergeResults } from './claude.js';
 import { initLogger, log } from './logger.js';
 
 async function sleep(ms: number): Promise<void> {
@@ -23,44 +24,62 @@ async function withRetry<T>(fn: () => T, retries = 3, label = ''): Promise<T> {
   throw new Error('unreachable');
 }
 
+function parseFlag(args: string[], flag: string): string {
+  const idx = args.indexOf(flag);
+  return idx !== -1 ? (args[idx + 1] ?? '') : '';
+}
+
+function flagIndices(args: string[], ...flags: string[]): Set<number> {
+  const idxs = new Set<number>();
+  for (const flag of flags) {
+    const idx = args.indexOf(flag);
+    if (idx >= 0) { idxs.add(idx); idxs.add(idx + 1); }
+  }
+  return idxs;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const modelIdx = args.indexOf('--model');
-  const model = modelIdx !== -1 ? (args[modelIdx + 1] ?? 'claude-sonnet-4-6') : 'claude-sonnet-4-6';
 
-  const authTokenIdx = args.indexOf('--auth-token');
-  const authToken = authTokenIdx !== -1 ? (args[authTokenIdx + 1] ?? '') : '';
+  const engineName = parseFlag(args, '--engine');
+  const model = parseFlag(args, '--model');
+  const authToken = parseFlag(args, '--auth-token');
+  const providerHint = parseFlag(args, '--provider');
 
-  const providerIdx = args.indexOf('--provider');
-  const providerHint = providerIdx !== -1 ? (args[providerIdx + 1] ?? '') : '';
+  if (model && !engineName) {
+    console.error('Error: --model requires --engine. Supported engines: claude-cli');
+    process.exit(1);
+  }
 
-  const skipIdxs = new Set([
-    ...(modelIdx >= 0 ? [modelIdx, modelIdx + 1] : []),
-    ...(authTokenIdx >= 0 ? [authTokenIdx, authTokenIdx + 1] : []),
-    ...(providerIdx >= 0 ? [providerIdx, providerIdx + 1] : []),
-  ]);
+  const skipIdxs = flagIndices(args, '--engine', '--model', '--auth-token', '--provider');
   const positional = args.filter((_, i) => !skipIdxs.has(i));
   const arg = positional[0];
 
   if (!arg) {
     console.error(
-      'Usage: pr-audit <ref> [--model <model>] [--auth-token <token>] [--provider github|gitlab]\n' +
+      'Usage: pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--provider github|gitlab]\n' +
       '\n' +
       'Supported formats:\n' +
       '  GitHub:  owner/repo#123  or  https://github.com/owner/repo/pull/123\n' +
-      '  GitLab:  group/project!123  or  https://gitlab.com/group/project/-/merge_requests/123',
+      '  GitLab:  group/project!123  or  https://gitlab.com/group/project/-/merge_requests/123\n' +
+      '\n' +
+      'Engines: claude-cli (default)',
     );
     process.exit(1);
   }
 
   const { provider, ref } = resolveProvider(arg, providerHint || undefined);
+  const engine = resolveEngine(engineName || 'claude-cli', authToken);
+  const effectiveModel = model || engine.defaultModel;
+
   const label = `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}_${ref.slug.replace(/\//g, '_')}_${ref.number}`;
   initLogger(label);
 
   log.section('RUN START');
   log.debug(`Command: ${process.argv.join(' ')}`);
   log.info(`Provider: ${provider.name}`);
-  log.info(`Model:    ${model}`);
+  log.info(`Engine:   ${engine.name}`);
+  log.info(`Model:    ${effectiveModel}`);
   log.info(`Fetching ${provider.reviewTerm} ${ref.slug}#${ref.number}...`);
   console.log(`Logging to ${log.filePath}`);
 
@@ -98,7 +117,7 @@ async function main(): Promise<void> {
 
     const prompt = buildPrompt(prData, batch, provider.reviewTerm);
     const result = await withRetry(
-      () => callClaude(prompt, model, authToken),
+      () => engine.review(prompt, effectiveModel),
       3,
       `Batch ${i + 1}/${batches.length}`,
     );
@@ -121,14 +140,13 @@ async function main(): Promise<void> {
   if (batches.length > 1) {
     log.section('SYNTHESIZING SUMMARY');
     log.info('Synthesizing batch summaries into one...');
-    merged.summary = synthesizeSummaries(
+    const synthesisPrompt = buildSynthesisPrompt(
       prData.title,
       results.map((r) => r.review.summary),
       merged.verdict,
-      model,
-      authToken,
       provider.reviewTerm,
     );
+    merged.summary = engine.synthesize(synthesisPrompt, effectiveModel);
   }
 
   if (batches.length > 1) {
