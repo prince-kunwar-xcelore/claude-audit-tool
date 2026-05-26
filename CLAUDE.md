@@ -79,4 +79,7 @@ Written to `~/.pr-audit/logs/YYYY-MM-DDTHH-MM-SS_SLUG_NUM.log` with INFO + DEBUG
 
 ## Pending Work
 
-See `plans/pending.md` for outstanding tasks (GitLab provider, tests, additional engines).
+See `plans/` for outstanding tasks:
+- `plans/gitlab-provider.md` — GitLab provider implementation
+- `plans/tests.md` — test suite using existing mocks
+- `plans/additional-engines.md` — OpenAI, Ollama, Anthropic API engines
