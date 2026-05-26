@@ -83,4 +83,6 @@ grep -A 5 "RUN SUMMARY" ~/.pr-audit/logs/*.log
 ```bash
 pnpm dev owner/repo#123   # run with tsx (no build needed)
 pnpm build                # compile to dist/
+pnpm test                 # run tests
+pnpm test:watch           # watch mode
 ```

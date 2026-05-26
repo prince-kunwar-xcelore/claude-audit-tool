@@ -63,6 +63,7 @@ pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--p
 - TypeScript (ESM, strict mode, target ES2022)
 - pnpm, compiled with tsc to `dist/`
 - Runtime dependency: `parse-diff`
+- Testing: `vitest`
 - External CLIs: `gh` (GitHub), `claude` (Claude Code), `glab` (GitLab, future)
 
 ## Build & Run
@@ -77,9 +78,21 @@ pnpm link --global               # install as global CLI
 
 Written to `~/.pr-audit/logs/YYYY-MM-DDTHH-MM-SS_SLUG_NUM.log` with INFO + DEBUG levels.
 
+## Tests
+
+```bash
+pnpm test                        # run once
+pnpm test:watch                  # watch mode
+```
+
+Tests use `MockEngine` and `MockProvider` for isolation. The null logger is injected via `test/setup.ts`.
+
+## Maintenance
+
+After any change that affects CLI usage, flags, architecture, build commands, or tech stack, update both `CLAUDE.md` and `README.md` to reflect the change.
+
 ## Pending Work
 
 See `plans/` for outstanding tasks:
 - `plans/gitlab-provider.md` — GitLab provider implementation
-- `plans/tests.md` — test suite using existing mocks
 - `plans/additional-engines.md` — OpenAI, Ollama, Anthropic API engines
