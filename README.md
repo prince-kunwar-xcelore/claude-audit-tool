@@ -1,10 +1,10 @@
 # pr-audit
 
-CLI tool that fetches a PR/MR, sends its diff to Claude for review, and posts the results back as a native review with inline comments and a summary.
+CLI tool that fetches a PR/MR, sends its diff to an AI review engine, and posts the results back as a native review with inline comments and a summary.
 
-Supports multiple git providers — currently GitHub, with GitLab coming soon.
-
-No API keys required — uses your existing `claude` CLI auth and provider CLI auth.
+Supports multiple git providers and review engines:
+- **Git providers**: GitHub (GitLab coming soon)
+- **Review engines**: Claude CLI (more coming soon)
 
 ## Prerequisites
 
@@ -34,12 +34,13 @@ pr-audit group/project!123
 pr-audit https://gitlab.com/group/project/-/merge_requests/123
 
 # Options
-pr-audit owner/repo#123 --model claude-opus-4-5        # different Claude model (default: claude-sonnet-4-6)
-pr-audit owner/repo#123 --auth-token sk-ant-...        # specific auth token
-pr-audit owner/repo#123 --provider github              # explicit provider override
+pr-audit owner/repo#123 --engine claude-cli --model claude-opus-4-5   # specific engine + model
+pr-audit owner/repo#123 --auth-token sk-ant-...                       # specific auth token
+pr-audit owner/repo#123 --provider github                             # explicit provider override
 ```
 
-The provider is auto-detected from the input format (`#` → GitHub, `!` → GitLab, URL hostname). Use `--provider` to override when needed (e.g. self-hosted instances).
+- **Provider** is auto-detected from the input format (`#` → GitHub, `!` → GitLab, URL hostname). Use `--provider` to override (e.g. self-hosted instances).
+- **Engine** defaults to `claude-cli` with model `claude-sonnet-4-6`. Use `--engine` to select an engine; `--model` requires `--engine`.
 
 ## How it works
 
@@ -47,8 +48,8 @@ The provider is auto-detected from the input format (`#` → GitHub, `!` → Git
 2. Filters out lock files and generated files
 3. Prints a cost estimate based on diff size before any Claude calls
 4. Chunks the diff into batches (≤1000 rendered lines each), truncating files over 600 added lines with a notice so Claude knows the file is partial
-5. Sends each batch to Claude (`claude -p`) with a structured JSON prompt — failed batches are retried up to 3 times with exponential backoff
-6. Synthesizes all batch summaries into a single coherent review summary via a final Claude call
+5. Sends each batch to the configured review engine with a structured JSON prompt — failed batches are retried up to 3 times with exponential backoff
+6. Synthesizes all batch summaries into a single coherent review summary via a final engine call
 7. Posts a native review with inline comments and the synthesized summary back to the provider
 
 ## Run logs
