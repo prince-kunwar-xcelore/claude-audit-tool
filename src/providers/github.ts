@@ -37,6 +37,7 @@ export class GitHubProvider implements GitProvider {
     headSha: string,
     review: ReviewOutput,
     comments: ReviewComment[],
+    dryRun = false,
   ): void {
     const endpoint = `/repos/${ref.slug}/pulls/${ref.number}/reviews`;
 
@@ -53,6 +54,13 @@ export class GitHubProvider implements GitProvider {
     };
 
     log.debug(`GitHub review payload:\n${JSON.stringify(payload, null, 2)}`);
+
+    if (dryRun) {
+      log.info(`[dry-run] Would POST ${endpoint}`);
+      log.info(`[dry-run] Payload:\n${JSON.stringify(payload, null, 2)}`);
+      log.info(`[dry-run] Review NOT posted (${review.verdict}, ${comments.length} inline comment(s))`);
+      return;
+    }
 
     let response: string;
     try {

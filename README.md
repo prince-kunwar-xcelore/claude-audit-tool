@@ -3,7 +3,7 @@
 CLI tool that fetches a PR/MR, sends its diff to an AI review engine, and posts the results back as a native review with inline comments and a summary.
 
 Supports multiple git providers and review engines:
-- **Git providers**: GitHub (GitLab coming soon)
+- **Git providers**: GitHub, GitLab
 - **Review engines**: Claude CLI (more coming soon)
 
 ## Prerequisites
@@ -11,7 +11,7 @@ Supports multiple git providers and review engines:
 - [Claude Code CLI](https://claude.ai/code) — installed and authenticated
 - A supported git provider CLI, installed and authenticated:
   - **GitHub**: [GitHub CLI](https://cli.github.com/) (`gh`)
-  - **GitLab** (coming soon): [GLab CLI](https://gitlab.com/gitlab-org/cli) (`glab`)
+  - **GitLab**: [GLab CLI](https://gitlab.com/gitlab-org/cli) (`glab`) — set `GITLAB_HOST` for self-hosted instances
 - Node.js 18+, pnpm
 
 ## Install
@@ -29,7 +29,7 @@ pnpm link --global
 pr-audit owner/repo#123
 pr-audit https://github.com/owner/repo/pull/123
 
-# GitLab (coming soon)
+# GitLab
 pr-audit group/project!123
 pr-audit https://gitlab.com/group/project/-/merge_requests/123
 
@@ -37,10 +37,12 @@ pr-audit https://gitlab.com/group/project/-/merge_requests/123
 pr-audit owner/repo#123 --engine claude-cli --model claude-opus-4-5   # specific engine + model
 pr-audit owner/repo#123 --auth-token sk-ant-...                       # specific auth token
 pr-audit owner/repo#123 --provider github                             # explicit provider override
+pr-audit owner/repo#123 --dry-run                                     # log payload, do not post
 ```
 
 - **Provider** is auto-detected from the input format (`#` → GitHub, `!` → GitLab, URL hostname). Use `--provider` to override (e.g. self-hosted instances).
 - **Engine** defaults to `claude-cli` with model `claude-sonnet-4-6`. Use `--engine` to select an engine; `--model` requires `--engine`.
+- **Dry-run** runs the full review (you still pay for Claude tokens) but skips the final post — useful for previewing what would be sent before committing to it.
 
 ## How it works
 

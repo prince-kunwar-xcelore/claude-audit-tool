@@ -28,14 +28,33 @@ describe('resolveProvider', () => {
   });
 
   describe('GitLab shorthand', () => {
-    it('detects GitLab pattern with !', () => {
-      expect(() => resolveProvider('group/project!10')).toThrow('Unsupported provider');
+    it('parses group/project!10', () => {
+      const { provider, ref } = resolveProvider('group/project!10');
+      expect(provider.name).toBe('GitLab');
+      expect(ref.slug).toBe('group/project');
+      expect(ref.number).toBe(10);
+    });
+
+    it('parses nested group/subgroup/project!5', () => {
+      const { provider, ref } = resolveProvider('group/subgroup/project!5');
+      expect(provider.name).toBe('GitLab');
+      expect(ref.slug).toBe('group/subgroup/project');
+      expect(ref.number).toBe(5);
     });
   });
 
   describe('GitLab URL', () => {
-    it('detects GitLab URL pattern', () => {
-      expect(() => resolveProvider('https://gitlab.com/group/project/-/merge_requests/5')).toThrow('Unsupported provider');
+    it('parses full GitLab MR URL', () => {
+      const { provider, ref } = resolveProvider('https://gitlab.com/group/project/-/merge_requests/5');
+      expect(provider.name).toBe('GitLab');
+      expect(ref.slug).toBe('group/project');
+      expect(ref.number).toBe(5);
+    });
+
+    it('parses nested group GitLab MR URL', () => {
+      const { ref } = resolveProvider('https://gitlab.com/group/subgroup/project/-/merge_requests/7');
+      expect(ref.slug).toBe('group/subgroup/project');
+      expect(ref.number).toBe(7);
     });
   });
 
@@ -54,8 +73,13 @@ describe('resolveProvider', () => {
   });
 
   describe('provider hint override', () => {
-    it('throws when hint overrides to unsupported provider', () => {
-      expect(() => resolveProvider('octocat/hello-world#42', 'gitlab')).toThrow('Unsupported provider');
+    it('uses hint to override auto-detected provider', () => {
+      const { provider } = resolveProvider('octocat/hello-world#42', 'gitlab');
+      expect(provider.name).toBe('GitLab');
+    });
+
+    it('throws when hint names an unknown provider', () => {
+      expect(() => resolveProvider('octocat/hello-world#42', 'bitbucket')).toThrow('Unsupported provider');
     });
   });
 });

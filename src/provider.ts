@@ -1,5 +1,6 @@
 import type { PrRef, PrData, ReviewComment, ReviewOutput } from './types.js';
 import { GitHubProvider } from './providers/github.js';
+import { GitLabProvider } from './providers/gitlab.js';
 
 export interface GitProvider {
   readonly name: string;
@@ -11,6 +12,7 @@ export interface GitProvider {
     headSha: string,
     review: ReviewOutput,
     comments: ReviewComment[],
+    dryRun?: boolean,
   ): void;
 }
 
@@ -30,7 +32,7 @@ const URL_MATCHERS: Array<{
     extract: (m) => ({ slug: m[1], number: parseInt(m[2], 10) }),
   },
   {
-    pattern: /([^/]+\/(?:[^/]+\/)*[^/]+)\/-\/merge_requests\/(\d+)/,
+    pattern: /https?:\/\/[^/]+\/((?:[^/]+\/)+[^/]+)\/-\/merge_requests\/(\d+)/,
     providerKey: 'gitlab',
     extract: (m) => ({ slug: m[1], number: parseInt(m[2], 10) }),
   },
@@ -57,8 +59,10 @@ function createProvider(key: string): GitProvider {
   switch (key) {
     case 'github':
       return new GitHubProvider();
+    case 'gitlab':
+      return new GitLabProvider();
     default:
-      throw new Error(`Unsupported provider: "${key}". Supported: github`);
+      throw new Error(`Unsupported provider: "${key}". Supported: github, gitlab`);
   }
 }
 

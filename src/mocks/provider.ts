@@ -6,6 +6,7 @@ export interface MockReviewCall {
   headSha: string;
   review: ReviewOutput;
   comments: ReviewComment[];
+  dryRun: boolean;
 }
 
 const DEFAULT_PR_DATA: PrData = {
@@ -38,7 +39,8 @@ export class MockProvider implements GitProvider {
     headSha: string,
     review: ReviewOutput,
     comments: ReviewComment[],
+    dryRun = false,
   ): void {
-    this.reviewCalls.push({ ref, headSha, review, comments });
+    this.reviewCalls.push({ ref, headSha, review, comments, dryRun });
   }
 }

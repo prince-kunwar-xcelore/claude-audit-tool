@@ -45,6 +45,7 @@ async function main(): Promise<void> {
   const model = parseFlag(args, '--model');
   const authToken = parseFlag(args, '--auth-token');
   const providerHint = parseFlag(args, '--provider');
+  const dryRun = args.includes('--dry-run');
 
   if (model && !engineName) {
     console.error('Error: --model requires --engine. Supported engines: claude-cli');
@@ -52,12 +53,12 @@ async function main(): Promise<void> {
   }
 
   const skipIdxs = flagIndices(args, '--engine', '--model', '--auth-token', '--provider');
-  const positional = args.filter((_, i) => !skipIdxs.has(i));
+  const positional = args.filter((a, i) => !skipIdxs.has(i) && a !== '--dry-run');
   const arg = positional[0];
 
   if (!arg) {
     console.error(
-      'Usage: pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--provider github|gitlab]\n' +
+      'Usage: pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--provider github|gitlab] [--dry-run]\n' +
       '\n' +
       'Supported formats:\n' +
       '  GitHub:  owner/repo#123  or  https://github.com/owner/repo/pull/123\n' +
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
   log.info(`Provider: ${provider.name}`);
   log.info(`Engine:   ${engine.name}`);
   log.info(`Model:    ${effectiveModel}`);
+  if (dryRun) log.info('Mode:     DRY-RUN (no review will be posted)');
   log.info(`Fetching ${provider.reviewTerm} ${ref.slug}#${ref.number}...`);
   console.log(`Logging to ${log.filePath}`);
 
@@ -162,9 +164,9 @@ async function main(): Promise<void> {
     log.warn(`[warn] Dropped ${merged.comments.length - validComments.length} comment(s) with invalid line refs`);
   }
 
-  log.section('POSTING REVIEW');
-  log.info(`Posting review (${merged.verdict})...`);
-  provider.postReview(ref, prData.headSha, merged, validComments);
+  log.section(dryRun ? 'DRY-RUN: REVIEW PREVIEW' : 'POSTING REVIEW');
+  log.info(`${dryRun ? 'Previewing' : 'Posting'} review (${merged.verdict})...`);
+  provider.postReview(ref, prData.headSha, merged, validComments, dryRun);
 
   log.section('RUN SUMMARY');
   log.info(`Verdict:   ${merged.verdict}`);

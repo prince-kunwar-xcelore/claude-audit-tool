@@ -15,6 +15,7 @@ src/
   logger.ts             Dual-stream logging (console + file)
   providers/
     github.ts           GitHubProvider — fetches via `gh` CLI, posts via GitHub API
+    gitlab.ts           GitLabProvider — fetches via `glab` CLI, posts discussions/notes/approve via GitLab API
   engines/
     claude-cli.ts       ClaudeCliEngine — calls `claude -p` CLI
     mock.ts             MockEngine — canned responses for testing
@@ -50,13 +51,14 @@ parseArgs → resolveProvider + resolveEngine
 ## CLI Flags
 
 ```
-pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--provider <provider>]
+pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--provider <provider>] [--dry-run]
 ```
 
 - `--engine`: Review engine (default: `claude-cli`). Required if `--model` is set.
 - `--model`: Model override. Uses engine's `defaultModel` if omitted.
 - `--auth-token`: Auth token passed to the engine (e.g. Claude CLI credentials).
 - `--provider`: Explicit git provider override (default: auto-detected from input).
+- `--dry-run`: Run the review but log the would-be API payload instead of posting. Providers must honor the `dryRun` flag in `postReview()`.
 
 ## Tech Stack
 
@@ -64,7 +66,7 @@ pr-audit <ref> [--engine <engine>] [--model <model>] [--auth-token <token>] [--p
 - pnpm, compiled with tsc to `dist/`
 - Runtime dependency: `parse-diff`
 - Testing: `vitest`
-- External CLIs: `gh` (GitHub), `claude` (Claude Code), `glab` (GitLab, future)
+- External CLIs: `gh` (GitHub), `glab` (GitLab), `claude` (Claude Code)
 
 ## Build & Run
 
@@ -85,7 +87,7 @@ pnpm test                        # run once
 pnpm test:watch                  # watch mode
 ```
 
-Tests use `MockEngine` and `MockProvider` for isolation. The null logger is injected via `test/setup.ts`.
+Tests use `MockEngine` and `MockProvider` for isolation. The null logger is injected via `test/setup.ts`. Provider-specific tests live in `test/providers/<name>.test.ts` and mock `child_process.execSync` to assert on the exact shell command + payload (without hitting the network).
 
 ## Maintenance
 
@@ -94,5 +96,4 @@ After any change that affects CLI usage, flags, architecture, build commands, or
 ## Pending Work
 
 See `plans/` for outstanding tasks:
-- `plans/gitlab-provider.md` — GitLab provider implementation
 - `plans/additional-engines.md` — OpenAI, Ollama, Anthropic API engines
